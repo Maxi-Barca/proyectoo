@@ -83,9 +83,8 @@ void loop()
   }
 
   for (uint16_t i = 0; i < samples; i++) {
-    // Normalizá la señal de 32 bits a valores entre -1.0 y 1.0 (opcional para FFT)
-    vReal[i] = (double)buffer[i];// / 2147483648.0;  // dividir por 2^31, para llevar esos numeros grandes a un rango estandar que FFT maneja mejor. Tmb transformo el valor  a double
-    vImag[i] = 0.0;
+    vReal2[i] = (double)buffer[i];// / 2147483648.0;  // dividir por 2^31, Normalizá la señal de 32 bits a valores entre -1.0 y 1.0 (opcional para FFT)
+    vImag2[i] = 0.0;
   }
 
   
@@ -115,17 +114,17 @@ void loop()
   //PrintVector(fftMagnitudes2, samples/2, SCL_FREQUENCY);
   
   double picoFrecuencia = FFT.majorPeak();
-  Serial.print("Frecuencia: ");
-  Serial.print(picoFrecuencia, 6);
-  Serial.print("Hz");
+  //Serial.print("Frecuencia: ");
+  //Serial.print(picoFrecuencia, 6);
+  //Serial.print("Hz");
 
   double picoFrecuencia2 = FFT2.majorPeak();
-  Serial.print("Frecuencia: ");
-  Serial.print(picoFrecuencia2, 6);
-  Serial.print("Hz");
+  //Serial.print("Frecuencia: ");
+  //Serial.print(picoFrecuencia2, 6);
+  //Serial.print("Hz");
 
   double mseComparacion = calcularMSE(fftMagnitudes,fftMagnitudes2 , samples/2);
-  Serial.println(mseComparacion);
+  Serial.println(mseComparacion, 4);
   if (mseComparacion < 1000.0) {
   Serial.println("Se aproximan bastante");
 }

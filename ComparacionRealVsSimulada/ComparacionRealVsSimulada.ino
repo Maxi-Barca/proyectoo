@@ -26,6 +26,9 @@ double vImag[samples];
 double vReal2[samples];
 double vImag2[samples];
 
+double fftMagnitudes[samples / 2];  // Solo se usa la mitad de la FFT
+double fftMagnitudes2[samples / 2];
+
 /* Create FFT object */
 ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, samples, samplingFrequency);
 ArduinoFFT<double> FFT2 = ArduinoFFT<double>(vReal2, vImag2, samples, samplingFrequency2);
@@ -41,7 +44,28 @@ void setup()
   while (!Serial) {};
   Serial.println("Ready");
 
-    const i2s_config_t i2s_config = {
+  double ratio = twoPi * signalFrequency / samplingFrequency; // Fraction of a complete cycle stored at each sample (in radians)
+  for (uint16_t i = 0; i < samples; i++)
+  {
+    vReal[i] = int8_t(amplitude * sin(i * ratio) / 2.0);/* Build data with positive and negative values*/
+    //vReal[i] = uint8_t((amplitude * (sin(i * ratio) + 1.0)) / 2.0);/* Build data displaced on the Y axis to include only positive values*/
+    vImag[i] = 0.0; //Imaginary part must be zeroed in case of looping to avoid wrong calculations and overflows
+  }
+
+  FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward); /* Weigh data */
+  FFT.compute(FFTDirection::Forward); /* Compute FFT */
+  FFT.complexToMagnitude(); /* Compute magnitudes */
+
+  for (int i = 0; i < samples / 2; i++) {
+    fftMagnitudes[i] = vReal[i];
+  }
+
+  double picoFrecuencia = FFT.majorPeak();
+  //Serial.print("Frecuencia: ");
+  //Serial.print(picoFrecuencia, 6);
+  //Serial.print("Hz");
+
+  const i2s_config_t i2s_config = {
     .mode = i2s_mode_t(I2S_MODE_MASTER | I2S_MODE_RX), // El ESP32 actúa como maestro y solo recibe datos (RX)
     .sample_rate = 16000,                              // Toma 16000 muestras por segundo (frecuencia de muestreo)
     .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,      // Cada muestra ocupa 32 bits (4 bytes)
@@ -54,7 +78,7 @@ void setup()
     .tx_desc_auto_clear = false,                       // Solo relevante para salida (TX), no afecta aquí
     .fixed_mclk = 0                                    // No se usa reloj maestro externo
   };
-  
+
   const i2s_pin_config_t pin_config = {
     .bck_io_num = I2S_SCK,               // Pin del reloj de bits
     .ws_io_num = I2S_WS,                 // Pin de selección de palabra (izq/der)
@@ -74,61 +98,37 @@ void loop()
 
   i2s_read(I2S_NUM_0, &buffer, sizeof(buffer), &bytes_read, portMAX_DELAY);
   /* Build raw data */
-  double ratio = twoPi * signalFrequency / samplingFrequency; // Fraction of a complete cycle stored at each sample (in radians)
-  for (uint16_t i = 0; i < samples; i++)
-  {
-    vReal[i] = int8_t(amplitude * sin(i * ratio) / 2.0);/* Build data with positive and negative values*/
-    //vReal[i] = uint8_t((amplitude * (sin(i * ratio) + 1.0)) / 2.0);/* Build data displaced on the Y axis to include only positive values*/
-    vImag[i] = 0.0; //Imaginary part must be zeroed in case of looping to avoid wrong calculations and overflows
-  }
 
   for (uint16_t i = 0; i < samples; i++) {
     vReal2[i] = (double)buffer[i];// / 2147483648.0;  // dividir por 2^31, Normalizá la señal de 32 bits a valores entre -1.0 y 1.0 (opcional para FFT)
     vImag2[i] = 0.0;
   }
 
-  
-  FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward); /* Weigh data */
-  FFT.compute(FFTDirection::Forward); /* Compute FFT */
-  FFT.complexToMagnitude(); /* Compute magnitudes */
-
   FFT2.windowing(FFTWindow::Hamming, FFTDirection::Forward);
   FFT2.compute(FFTDirection::Forward);
   FFT2.complexToMagnitude();
 
-  double fftMagnitudes[samples / 2];  // Solo se usa la mitad de la FFT
-  double fftMagnitudes2[samples / 2];
-  
-  for (int i = 0; i < samples / 2; i++) {
-    fftMagnitudes[i] = vReal[i];
-  }
-  
   for (int i = 0; i < samples / 2; i++) {
     fftMagnitudes2[i] = vReal2[i];
   }
-  
+
   //Serial.println("magnitud guardada:");
   //PrintVector(fftMagnitudes, samples/2, SCL_FREQUENCY);
 
   //Serial.println("magnitud2 guardada:");
   //PrintVector(fftMagnitudes2, samples/2, SCL_FREQUENCY);
-  
-  double picoFrecuencia = FFT.majorPeak();
-  //Serial.print("Frecuencia: ");
-  //Serial.print(picoFrecuencia, 6);
-  //Serial.print("Hz");
 
   double picoFrecuencia2 = FFT2.majorPeak();
   //Serial.print("Frecuencia: ");
   //Serial.print(picoFrecuencia2, 6);
   //Serial.print("Hz");
 
-  double mseComparacion = calcularMSE(fftMagnitudes,fftMagnitudes2 , samples/2);
+  double mseComparacion = calcularMSE(fftMagnitudes, fftMagnitudes2 , samples / 2);
   Serial.println(mseComparacion, 4);
   if (mseComparacion < 1000.0) {
-  Serial.println("Se aproximan bastante");
-}
-  delay(2000); /* Repeat after delay */
+    Serial.println("Se aproximan bastante");
+  }
+  delay(200); /* Repeat after delay */
 }
 
 void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
@@ -159,10 +159,10 @@ void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
 }
 
 double calcularMSE(const double* a, const double* b, int size) {  //comparamos error cuadratico medio entre señales (con el fft aplicado)
-    double suma = 0.0;
-    for (int i = 0; i < size; ++i) {
-        double diff = a[i] - b[i];
-        suma += diff * diff;
-    }
-    return suma / size;    //cuanto mayor MSE, más distintos son los vectores
+  double suma = 0.0;
+  for (int i = 0; i < size; ++i) {
+    double diff = a[i] - b[i];
+    suma += diff * diff;
+  }
+  return suma / size;    //cuanto mayor MSE, más distintos son los vectores
 }

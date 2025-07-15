@@ -111,8 +111,7 @@ void procesarAudioTask(void *parameter) {
         magMic[i] = vRealMic[i];
         magGen[i] = vRealGen[i];
       }
-
-      // Comparar
+      
       double mse = calcularMSE(magMic, magGen, samples / 2);
       Serial.print("MSE: ");
       Serial.println(mse, 2);

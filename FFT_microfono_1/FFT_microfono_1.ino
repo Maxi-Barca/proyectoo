@@ -81,5 +81,5 @@ void loop()
   Serial.print(picoFrecuencia, 2);
   Serial.println(" Hz");
   //while (1); /* Run Once */
-  delay(200); /* Repeat after delay */
+  delay(500); /* Repeat after delay */
 }

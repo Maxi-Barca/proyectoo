@@ -72,14 +72,57 @@ void loop()
     vReal[i] = (double)buffer[i];// / 2147483648.0;  // dividir por 2^31, para llevar esos numeros grandes a un rango estandar que FFT maneja mejor. Tmb transformo el valor  a double
     vImag[i] = 0.0;
   }
-  /* Print the results of the simulated sampling according to time */
+  
+  //Serial.println("Data:");
+  //PrintVector(vReal, samples, SCL_TIME);
+  
   FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward); /* Weigh data */
+  //Serial.println("Weighed data:");
+  //PrintVector(vReal, samples, SCL_TIME);
+  
   FFT.compute(FFTDirection::Forward); /* Compute FFT */
+  //Serial.println("Computed Real values:");
+  //PrintVector(vReal, samples, SCL_INDEX);
+  //Serial.println("Computed Imaginary values:");
+  //PrintVector(vImag, samples, SCL_INDEX);
+  
   FFT.complexToMagnitude(); /* Compute magnitudes */
+  //Serial.println("Computed magnitudes:");
+  //PrintVector(vReal, (samples >> 1), SCL_FREQUENCY);
   
   double picoFrecuencia = FFT.majorPeak();
+  if(7150.00 >= picoFrecuencia && picoFrecuencia >= 7000.00){
+    Serial.println("esta sonando el timbre");
+  }
   Serial.print(picoFrecuencia, 2);
   Serial.println(" Hz");
   //while (1); /* Run Once */
-  delay(500); /* Repeat after delay */
+  delay(1000); /* Repeat after delay */
+}
+
+void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
+{
+  for (uint16_t i = 0; i < bufferSize; i++)
+  {
+    double abscissa;
+    /* Print abscissa value */
+    switch (scaleType)
+    {
+      case SCL_INDEX:
+        abscissa = (i * 1.0);
+        break;
+      case SCL_TIME:
+        abscissa = ((i * 1.0) / samplingFrequency);
+        break;
+      case SCL_FREQUENCY:
+        abscissa = ((i * 1.0 * samplingFrequency) / samples);
+        break;
+    }
+    Serial.print(abscissa, 6);
+    if (scaleType == SCL_FREQUENCY)
+      Serial.print("Hz");
+    Serial.print(" ");
+    Serial.println(vData[i], 4);
+  }
+  Serial.println();
 }

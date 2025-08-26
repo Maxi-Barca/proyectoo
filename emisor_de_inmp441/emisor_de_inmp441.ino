@@ -1,26 +1,39 @@
 #include <Arduino.h>
 #include "arduinoFFT.h"
 #include <driver/i2s.h>
+#include <esp_now.h>
+#include <WiFi.h>
 
 #define I2S_WS 15    // Word Select (también llamado LRCLK): define si el canal es izquierdo o derecho
 #define I2S_SD 32    // Serial Data: pin por donde el micrófono envía los datos de audio
 #define I2S_SCK 14   // Serial Clock (Bit Clock o BCLK): pin del reloj que sincroniza los datos
 
-/*
-  These values can be changed in order to evaluate the functions
-*/
+// Dirección MAC del receptor
+uint8_t broadcastAddress[] = {0xD4, 0x8A, 0xFC, 0xCE, 0xE1, 0xD0};
+
+// Estructura de mensaje
+typedef struct struct_message {
+  int counter;
+} struct_message;
+
+struct_message myData;
+
+esp_now_peer_info_t peerInfo;
+
+// Callback de confirmación de envío
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("Estado del último envío: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Éxito" : "Fallo");
+}
+
+
 const uint16_t samples = 64; //This value MUST ALWAYS be a power of 2
 const double samplingFrequency = 16000;
 
 
-/*
-  These are the input and output vectors
-  Input vectors receive computed results from FFT
-*/
 double vReal[samples];
 double vImag[samples];
 
-/* Create FFT object */
 ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, samples, samplingFrequency);
 
 #define SCL_INDEX 0x00
@@ -33,6 +46,26 @@ void setup()
   Serial.begin(115200);
   while (!Serial) {};
   Serial.println("Ready");
+
+  WiFi.mode(WIFI_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error iniciando ESP-NOW");
+    return;
+  }
+
+  // Registrar callback de envío
+  esp_now_register_send_cb(OnDataSent);
+
+  // Registrar al receptor como peer
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Error agregando peer");
+    return;
+  }
 
   const i2s_config_t i2s_config = {
     .mode = i2s_mode_t(I2S_MODE_MASTER | I2S_MODE_RX), // El ESP32 actúa como maestro y solo recibe datos (RX)
@@ -47,7 +80,7 @@ void setup()
     .tx_desc_auto_clear = false,                       // Solo relevante para salida (TX), no afecta aquí
     .fixed_mclk = 0                                    // No se usa reloj maestro externo
   };
-  
+
   const i2s_pin_config_t pin_config = {
     .bck_io_num = I2S_SCK,               // Pin del reloj de bits
     .ws_io_num = I2S_WS,                 // Pin de selección de palabra (izq/der)
@@ -72,31 +105,35 @@ void loop()
     vReal[i] = (double)buffer[i];// / 2147483648.0;  // dividir por 2^31, para llevar esos numeros grandes a un rango estandar que FFT maneja mejor. Tmb transformo el valor  a double
     vImag[i] = 0.0;
   }
-  
+
   //Serial.println("Data:");
   //PrintVector(vReal, samples, SCL_TIME);
-  
+
   FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward); /* Weigh data */
   //Serial.println("Weighed data:");
   //PrintVector(vReal, samples, SCL_TIME);
-  
+
   FFT.compute(FFTDirection::Forward); /* Compute FFT */
   //Serial.println("Computed Real values:");
   //PrintVector(vReal, samples, SCL_INDEX);
   //Serial.println("Computed Imaginary values:");
   //PrintVector(vImag, samples, SCL_INDEX);
-  
+
   FFT.complexToMagnitude(); /* Compute magnitudes */
   //Serial.println("Computed magnitudes:");
   //PrintVector(vReal, (samples >> 1), SCL_FREQUENCY);
-  
+
+  static int counter = 0;
+  myData.counter = 0_[
+  ;
+
   double picoFrecuencia = FFT.majorPeak();
-  if(7150.00 >= picoFrecuencia && picoFrecuencia >= 7000.00){
+  if (7150.00 >= picoFrecuencia && picoFrecuencia >= 7000.00) {
     Serial.println("esta sonando el timbre");
+    myData.counter = 1;
+    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
   }
-  //Serial.print(picoFrecuencia, 2);
-  //Serial.println(" Hz");
-  //while (1); /* Run Once */
+
   delay(1000); /* Repeat after delay */
 }
 

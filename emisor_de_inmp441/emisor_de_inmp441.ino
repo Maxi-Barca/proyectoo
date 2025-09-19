@@ -41,6 +41,9 @@ ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, samples, samplingFrequ
 #define SCL_FREQUENCY 0x02
 #define SCL_PLOT 0x03
 
+unsigned long millisInicio = 0;
+bool enviando = false;
+
 void setup()
 {
   Serial.begin(115200);
@@ -93,48 +96,53 @@ void setup()
   i2s_zero_dma_buffer(I2S_NUM_0);                     // Limpia los buffers de DMA antes de comenzar
 }
 
-void loop()
-{
-  int32_t buffer[samples];     // buffer para las muestras de 32 bits
-  size_t bytes_read;
+void loop() {
+  unsigned long millisActual = millis();
 
-  i2s_read(I2S_NUM_0, &buffer, sizeof(buffer), &bytes_read, portMAX_DELAY);
+  // --- Control de lectura cada 1 segundo ---
+  static unsigned long ultimaLectura = 0;
+  if (millisActual - ultimaLectura >= 1000) {
+    ultimaLectura = millisActual;
 
-  for (uint16_t i = 0; i < samples; i++) {
-    // Normalizá la señal de 32 bits a valores entre -1.0 y 1.0 (opcional para FFT)
-    vReal[i] = (double)buffer[i];// / 2147483648.0;  // dividir por 2^31, para llevar esos numeros grandes a un rango estandar que FFT maneja mejor. Tmb transformo el valor  a double
-    vImag[i] = 0.0;
+    // Leer datos del micrófono
+    int32_t buffer[samples];
+    size_t bytes_read;
+
+    i2s_read(I2S_NUM_0, &buffer, sizeof(buffer), &bytes_read, portMAX_DELAY);
+
+    for (uint16_t i = 0; i < samples; i++) {
+      vReal[i] = (double)buffer[i];
+      vImag[i] = 0.0;
+    }
+
+    FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward); 
+    FFT.compute(FFTDirection::Forward);
+    FFT.complexToMagnitude();
+
+    double picoFrecuencia = FFT.majorPeak();
+
+    // Detectar timbre
+    if (picoFrecuencia >= 7000.00 && picoFrecuencia <= 7150.00) {
+      if (!enviando) {
+        enviando = true;
+        millisInicio = millisActual;
+      }
+    }
   }
 
-  //Serial.println("Data:");
-  //PrintVector(vReal, samples, SCL_TIME);
-
-  FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward); /* Weigh data */
-  //Serial.println("Weighed data:");
-  //PrintVector(vReal, samples, SCL_TIME);
-
-  FFT.compute(FFTDirection::Forward); /* Compute FFT */
-  //Serial.println("Computed Real values:");
-  //PrintVector(vReal, samples, SCL_INDEX);
-  //Serial.println("Computed Imaginary values:");
-  //PrintVector(vImag, samples, SCL_INDEX);
-
-  FFT.complexToMagnitude(); /* Compute magnitudes */
-  //Serial.println("Computed magnitudes:");
-  //PrintVector(vReal, (samples >> 1), SCL_FREQUENCY);
-
-  static int counter = 0;
-  myData.counter = 0_[
-  ;
-
-  double picoFrecuencia = FFT.majorPeak();
-  if (7150.00 >= picoFrecuencia && picoFrecuencia >= 7000.00) {
-    Serial.println("esta sonando el timbre");
+  // --- Control de envío por 5 segundos ---
+  if (enviando && (millisActual - millisInicio < 5000)) {
     myData.counter = 1;
     esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+    Serial.println("Enviando: timbre detectado");
   }
 
-  delay(1000); /* Repeat after delay */
+  if (enviando && (millisActual - millisInicio >= 5000)) {
+    enviando = false;
+    Serial.println("Fin del envío de timbre");
+    myData.counter = 0;
+    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+  }
 }
 
 void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType)

@@ -13,13 +13,13 @@ void setup() {
 
   Wire.begin(21, 22); 
   
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x78)) { 
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
     Serial.println(F("No se encontró pantalla SSD1306"));
     for(;;); 
   }
 
   display.clearDisplay();        // limpia buffer
-  display.setTextSize(1);        // tamaño de texto
+  display.setTextSize(2);        // tamaño de texto
   display.setTextColor(SSD1306_WHITE); // color (blanco)
   display.setCursor(0,0);        // posicion inicial
   display.println("Hola Mundo!");

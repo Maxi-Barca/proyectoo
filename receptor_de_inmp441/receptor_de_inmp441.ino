@@ -11,8 +11,8 @@
 
 Adafruit_SSD1306 display(ANCHO_PANTALLA, ALTO_PANTALLA, &Wire, -1);
 
-#define MOTOR 33
-#define PIN_NEOPIXEL 4
+#define MOTOR 25
+#define PIN_NEOPIXEL 16
 #define NUMPIXELS 10
 
 // Estructura de mensaje

@@ -9,7 +9,7 @@
 #define I2S_SCK 14   // Serial Clock (Bit Clock o BCLK): pin del reloj que sincroniza los datos
 
 // Dirección MAC del receptor
-uint8_t broadcastAddress[] = {0xD4, 0x8A, 0xFC, 0xCE, 0xE1, 0xD0};
+uint8_t broadcastAddress[] = {0xC8, 0x2E, 0x18, 0xF7, 0x3F, 0xD8};
 
 // Estructura de mensaje
 typedef struct struct_message {

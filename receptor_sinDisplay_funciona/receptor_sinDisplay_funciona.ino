@@ -2,8 +2,8 @@
 #include <WiFi.h>
 #include <Adafruit_NeoPixel.h>
 #include <string.h>
-#include <Wire.h>
 /*
+#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 */
@@ -37,7 +37,7 @@ unsigned long ultimoCambio = 0;
 bool estadoLed = false;
 
 // Se usaba para controlar el texto en pantalla, ahora desactivado
-// String ultimaPantalla = "";  
+// String ultimaPantalla = "";
 
 
 /*
@@ -98,7 +98,11 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
-  Wire.begin(21, 22);   // Pines I2C, aunque el display está desactivado
+  //Wire.begin(21, 22);  // Pines I2C, aunque el display está desactivado
+  delay(500);
+
+  Serial.print("MAC: ");
+  Serial.println(WiFi.macAddress());
 
 
   /*
